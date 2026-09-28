@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
 import { Button, Card, Heading, IconButton } from '@stellar/design-system'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useCallback, useMemo, useState } from 'react'
 import { useLensStore } from '../../../store/lensStore'
 import { validateContractRouteParam } from './-validateContractRouteParam'
 
@@ -18,6 +18,11 @@ export interface DiscoveryLoadState {
   requestedKeyCount: number
 }
 
+export interface DiscoveryInputState {
+  transaction: string
+  arguments: string
+}
+
 const DEFAULT_DISCOVERED_KEYS: Array<DiscoveredKey> = [
   { keyPath: '/contracts/key1', type: 'ContractData' },
   { keyPath: '/contracts/key2', type: 'ContractData' },
@@ -29,10 +34,7 @@ export function dedupeDiscoveryKeys(
 ): Array<DiscoveredKey> {
   const seen = new Set<string>()
   return (keys ?? []).filter((item) => {
-    if (
-      typeof item.keyPath !== 'string' ||
-      item.keyPath.length === 0
-    ) {
+    if (typeof item.keyPath !== 'string' || item.keyPath.length === 0) {
       return false
     }
     if (seen.has(item.keyPath)) {
@@ -197,7 +199,7 @@ export const Route = createFileRoute('/contracts/$contractId/discovery')({
   component: DiscoveryRoute,
 })
 
-function DiscoveryRoute() {
+export function DiscoveryRoute() {
   const { contractId } = Route.useParams()
   const { normalizedContractId } = Route.useRouteContext()
   const addToWatchlist = useLensStore((state) => state.addToWatchlist)
@@ -208,6 +210,10 @@ function DiscoveryRoute() {
       requestedKeyCount: DEFAULT_DISCOVERED_KEYS.length,
     }),
   )
+  const [inputState, setInputState] = useState<DiscoveryInputState>({
+    transaction: '',
+    arguments: '',
+  })
 
   const handlePinKey = (keyPath: string) => {
     addToWatchlist(contractId, keyPath)
@@ -221,6 +227,36 @@ function DiscoveryRoute() {
         error: null,
       }),
     )
+  }, [])
+
+  const handleTransactionChange = (value: string) => {
+    setInputState((prev) => ({ ...prev, transaction: value }))
+  }
+
+  const handleArgumentsChange = (value: string) => {
+    setInputState((prev) => ({ ...prev, arguments: value }))
+  }
+
+  const handleSubmit = useCallback(() => {
+    setState((current) =>
+      buildDiscoveryLoadState({
+        ...current,
+        status: 'loading',
+        error: null,
+      }),
+    )
+
+    // Simulate a request that fails for demonstration
+    setTimeout(() => {
+      setState((current) =>
+        buildDiscoveryLoadState({
+          ...current,
+          status: 'error',
+          error: 'Failed to simulate transaction',
+          requestedKeyCount: 1,
+        }),
+      )
+    }, 1000)
   }, [])
 
   return (
@@ -237,11 +273,54 @@ function DiscoveryRoute() {
           </Heading>
           <p className="text-text-secondary leading-relaxed text-sm max-w-2xl">
             This dedicated discovery route is contract-aware and refresh-safe.
-            It reserves space for simulation-driven key discovery workflows while
-            avoiding live simulation and footprint parsing for now.
+            It reserves space for simulation-driven key discovery workflows
+            while avoiding live simulation and footprint parsing for now.
           </p>
         </div>
       </header>
+
+      <Card>
+        <div className="p-6 space-y-4">
+          <Heading size="sm" as="h3" className="text-white">
+            Transaction Simulation
+          </Heading>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs text-text-muted mb-1 font-medium">
+                Transaction XDR
+              </label>
+              <input
+                id="discovery-transaction"
+                type="text"
+                value={inputState.transaction}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleTransactionChange(e.target.value)
+                }
+                placeholder="Base64 encoded transaction envelope"
+                className="w-full px-3 py-2 bg-background-dark border border-border-dark rounded-md text-sm text-white placeholder-text-muted focus:outline-none focus:ring-1 focus:ring-primary/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1 font-medium">
+                Arguments (JSON)
+              </label>
+              <input
+                id="discovery-arguments"
+                type="text"
+                value={inputState.arguments}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleArgumentsChange(e.target.value)
+                }
+                placeholder='{"arg1": "value1"}'
+                className="w-full px-3 py-2 bg-background-dark border border-border-dark rounded-md text-sm text-white placeholder-text-muted focus:outline-none focus:ring-1 focus:ring-primary/20"
+              />
+            </div>
+            <Button variant="primary" size="sm" onClick={handleSubmit}>
+              Simulate
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       <DiscoveryStateView
         state={state}
